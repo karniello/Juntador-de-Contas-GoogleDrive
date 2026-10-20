@@ -1,0 +1,6 @@
+{
+  "name": "Google Drive Virtual Storage Pool",
+  "description": "Virtual 30GB+ storage pool combining multiple Google Drive accounts with Most Free Space (MFS) allocation, SQLite catalog, CLI, and CustomTkinter desktop GUI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

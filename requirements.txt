@@ -1,0 +1,10 @@
+# Dependências Oficiais da Google Cloud API
+google-api-python-client>=2.118.0
+google-auth-oauthlib>=1.2.0
+google-auth-httplib2>=0.2.0
+
+# Interface Gráfica Desktop Moderna
+customtkinter>=5.2.2
+
+# Utilitários de Terminal e Barra de Progresso
+tqdm>=4.66.0

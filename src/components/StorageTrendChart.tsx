@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from "react";
 import {
   ResponsiveContainer,
-  LineChart,
   Line,
   XAxis,
   YAxis,
@@ -12,65 +11,70 @@ import {
   Area,
   ComposedChart
 } from "recharts";
-import { TrendingUp, Calendar, ArrowUpRight, Zap, Filter } from "lucide-react";
+import { TrendingUp, Layers } from "lucide-react";
+
+export interface AccountSummary {
+  id: string;
+  name: string;
+  color: string;
+  limitBytes: number;
+}
 
 interface FileEntry {
   id: number;
   nome_arquivo: string;
   tamanho_bytes: number;
-  conta_origem: "drive_1" | "drive_2";
+  conta_origem: string;
   data_upload: string;
 }
 
 interface StorageTrendChartProps {
   files: FileEntry[];
+  accounts: AccountSummary[];
   totalPoolLimitBytes: number;
 }
 
 export const StorageTrendChart: React.FC<StorageTrendChartProps> = ({
   files,
+  accounts,
   totalPoolLimitBytes,
 }) => {
   const [chartMode, setChartMode] = useState<"all" | "pool" | "accounts">("all");
 
   const totalPoolLimitGB = parseFloat((totalPoolLimitBytes / (1024 * 1024 * 1024)).toFixed(1));
 
-  // Constrói a linha temporal acumulada
+  // Constrói a linha temporal acumulada dinâmica para N contas
   const trendData = useMemo(() => {
-    // Ordena arquivos por data de upload crescente
     const sorted = [...files].sort(
       (a, b) => new Date(a.data_upload).getTime() - new Date(b.data_upload).getTime()
     );
 
-    // Ponto inicial (Pool inicializado vazio há 5 dias)
-    const points: Array<{
-      timestamp: string;
-      label: string;
-      poolUsageGB: number;
-      drive1UsageGB: number;
-      drive2UsageGB: number;
-      fileName?: string;
-    }> = [
-      {
-        timestamp: "2026-10-15T08:00:00Z",
-        label: "15/10 08:00 (Inicial)",
-        poolUsageGB: 0,
-        drive1UsageGB: 0,
-        drive2UsageGB: 0,
-        fileName: "Inicialização do Pool Virtual",
-      },
-    ];
+    // Dicionário acumulador de bytes por conta
+    const cumByAccount: Record<string, number> = {};
+    accounts.forEach((acc) => {
+      cumByAccount[acc.id] = 0;
+    });
 
-    let cumD1 = 0;
-    let cumD2 = 0;
+    const initialPoint: any = {
+      timestamp: "2026-10-15T08:00:00Z",
+      label: "15/10 (Início)",
+      poolUsageGB: 0,
+      fileName: "Início do Pool Virtual",
+    };
+    accounts.forEach((acc) => {
+      initialPoint[`${acc.id}_GB`] = 0;
+    });
+
+    const points: any[] = [initialPoint];
 
     sorted.forEach((file) => {
       const sizeGB = file.tamanho_bytes / (1024 * 1024 * 1024);
-      if (file.conta_origem === "drive_1") {
-        cumD1 += sizeGB;
-      } else {
-        cumD2 += sizeGB;
+      if (cumByAccount[file.conta_origem] === undefined) {
+        cumByAccount[file.conta_origem] = 0;
       }
+      cumByAccount[file.conta_origem] += sizeGB;
+
+      const totalCumGB = Object.values(cumByAccount).reduce((acc, curr) => acc + curr, 0);
 
       const fileDate = new Date(file.data_upload);
       const day = String(fileDate.getDate()).padStart(2, "0");
@@ -78,28 +82,25 @@ export const StorageTrendChart: React.FC<StorageTrendChartProps> = ({
       const hours = String(fileDate.getHours()).padStart(2, "0");
       const mins = String(fileDate.getMinutes()).padStart(2, "0");
 
-      points.push({
+      const point: any = {
         timestamp: file.data_upload,
         label: `${day}/${month} ${hours}:${mins}`,
-        poolUsageGB: parseFloat((cumD1 + cumD2).toFixed(2)),
-        drive1UsageGB: parseFloat(cumD1.toFixed(2)),
-        drive2UsageGB: parseFloat(cumD2.toFixed(2)),
+        poolUsageGB: parseFloat(totalCumGB.toFixed(2)),
         fileName: file.nome_arquivo,
+        fileAccount: file.conta_origem,
+      };
+
+      accounts.forEach((acc) => {
+        point[`${acc.id}_GB`] = parseFloat((cumByAccount[acc.id] || 0).toFixed(2));
       });
+
+      points.push(point);
     });
 
     return points;
-  }, [files]);
+  }, [files, accounts]);
 
   const currentUsageGB = trendData.length > 0 ? trendData[trendData.length - 1].poolUsageGB : 0;
-  const growthRate =
-    trendData.length > 1
-      ? (
-          ((currentUsageGB - trendData[1].poolUsageGB) /
-            Math.max(trendData[1].poolUsageGB, 0.1)) *
-          100
-        ).toFixed(0)
-      : "0";
 
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 shadow-lg space-y-4">
@@ -110,12 +111,15 @@ export const StorageTrendChart: React.FC<StorageTrendChartProps> = ({
             <span className="p-1 rounded-lg bg-cyan-500/10 text-cyan-400">
               <TrendingUp className="w-4 h-4" />
             </span>
-            <h3 className="text-sm font-bold text-white tracking-tight">
-              Evolução do Armazenamento ao Longo do Tempo (Trend Growth)
+            <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
+              <span>Evolução do Armazenamento no Pool</span>
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-cyan-400 border border-slate-700">
+                {accounts.length} Contas Integradas
+              </span>
             </h3>
           </div>
           <p className="text-xs text-slate-400">
-            Acompanhe o crescimento acumulado no Pool Virtual e o balanceamento inteligente entre Drive 1 e Drive 2.
+            Acompanhe o crescimento acumulado no Pool Virtual e a alocação balanceada entre todas as contas conectadas.
           </p>
         </div>
 
@@ -129,7 +133,7 @@ export const StorageTrendChart: React.FC<StorageTrendChartProps> = ({
                 : "text-slate-400 hover:text-white"
             }`}
           >
-            Todos
+            Todas as Contas
           </button>
           <button
             onClick={() => setChartMode("pool")}
@@ -139,7 +143,7 @@ export const StorageTrendChart: React.FC<StorageTrendChartProps> = ({
                 : "text-slate-400 hover:text-white"
             }`}
           >
-            Total Pool
+            Apenas Total Pool
           </button>
           <button
             onClick={() => setChartMode("accounts")}
@@ -149,40 +153,37 @@ export const StorageTrendChart: React.FC<StorageTrendChartProps> = ({
                 : "text-slate-400 hover:text-white"
             }`}
           >
-            D1 vs D2
+            Apenas Contas
           </button>
         </div>
       </div>
 
-      {/* Mini Métricas Rápidas */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/60">
-          <span className="text-[11px] text-slate-400">Uso Atual Acumulado</span>
+      {/* Mini Métricas Rápidas Dinâmicas */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2.5">
+        <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/60">
+          <span className="text-[10px] text-slate-400 uppercase font-semibold">Total do Pool</span>
           <div className="text-sm font-extrabold text-cyan-400 mt-0.5">
             {currentUsageGB} GB
           </div>
+          <span className="text-[10px] text-slate-500">de {totalPoolLimitGB} GB</span>
         </div>
 
-        <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/60">
-          <span className="text-[11px] text-slate-400">Teto Total (Cota)</span>
-          <div className="text-sm font-extrabold text-slate-200 mt-0.5">
-            {totalPoolLimitGB} GB
-          </div>
-        </div>
-
-        <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/60">
-          <span className="text-[11px] text-slate-400">Drive 1 Acumulado</span>
-          <div className="text-sm font-extrabold text-cyan-300 mt-0.5">
-            {trendData[trendData.length - 1]?.drive1UsageGB || 0} GB
-          </div>
-        </div>
-
-        <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/60">
-          <span className="text-[11px] text-slate-400">Drive 2 Acumulado</span>
-          <div className="text-sm font-extrabold text-amber-400 mt-0.5">
-            {trendData[trendData.length - 1]?.drive2UsageGB || 0} GB
-          </div>
-        </div>
+        {accounts.map((acc) => {
+          const accGB = trendData[trendData.length - 1]?.[`${acc.id}_GB`] || 0;
+          return (
+            <div key={acc.id} className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/60">
+              <span className="text-[10px] text-slate-400 uppercase font-semibold truncate block">
+                {acc.name}
+              </span>
+              <div className="text-sm font-extrabold mt-0.5" style={{ color: acc.color }}>
+                {accGB} GB
+              </div>
+              <span className="text-[10px] text-slate-500">
+                limite {(acc.limitBytes / (1024 * 1024 * 1024)).toFixed(0)} GB
+              </span>
+            </div>
+          );
+        })}
       </div>
 
       {/* Gráfico Recharts */}
@@ -223,11 +224,11 @@ export const StorageTrendChart: React.FC<StorageTrendChartProps> = ({
                 if (active && payload && payload.length) {
                   const dataPoint = payload[0].payload;
                   return (
-                    <div className="rounded-xl border border-slate-700 bg-slate-950/95 p-3 shadow-2xl backdrop-blur-md text-xs space-y-1.5 min-w-[200px]">
+                    <div className="rounded-xl border border-slate-700 bg-slate-950/95 p-3 shadow-2xl backdrop-blur-md text-xs space-y-1.5 min-w-[220px]">
                       <div className="font-bold text-white border-b border-slate-800 pb-1 flex items-center justify-between">
                         <span>{label}</span>
                         <span className="text-[10px] text-slate-400">
-                          {dataPoint.fileName ? "Upload de Arquivo" : "Ponto Base"}
+                          {dataPoint.fileName ? "Upload" : "Início"}
                         </span>
                       </div>
                       {dataPoint.fileName && (
@@ -236,18 +237,20 @@ export const StorageTrendChart: React.FC<StorageTrendChartProps> = ({
                         </div>
                       )}
                       <div className="space-y-1 pt-1 font-mono">
-                        <div className="flex justify-between text-cyan-400">
+                        <div className="flex justify-between text-cyan-400 border-b border-slate-800/60 pb-1">
                           <span>Total do Pool:</span>
                           <strong>{dataPoint.poolUsageGB} GB</strong>
                         </div>
-                        <div className="flex justify-between text-cyan-300">
-                          <span>Drive 1:</span>
-                          <span>{dataPoint.drive1UsageGB} GB</span>
-                        </div>
-                        <div className="flex justify-between text-amber-400">
-                          <span>Drive 2:</span>
-                          <span>{dataPoint.drive2UsageGB} GB</span>
-                        </div>
+                        {accounts.map((acc) => (
+                          <div
+                            key={acc.id}
+                            className="flex justify-between"
+                            style={{ color: acc.color }}
+                          >
+                            <span>{acc.name}:</span>
+                            <span>{dataPoint[`${acc.id}_GB`] || 0} GB</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   );
@@ -269,59 +272,47 @@ export const StorageTrendChart: React.FC<StorageTrendChartProps> = ({
               stroke="#ef4444"
               strokeDasharray="4 4"
               label={{
-                value: `Capacidade Máx: ${totalPoolLimitGB} GB`,
+                value: `Capacidade Total: ${totalPoolLimitGB} GB`,
                 fill: "#f87171",
                 fontSize: 10,
                 position: "insideTopRight",
               }}
             />
 
-            {/* Total Pool Usage Area & Line */}
+            {/* Área do Pool Total */}
             {(chartMode === "all" || chartMode === "pool") && (
-              <>
-                <Area
+              <Area
+                type="monotone"
+                dataKey="poolUsageGB"
+                name="Uso Total do Pool (GB)"
+                fill="url(#poolGrad)"
+                stroke="#06b6d4"
+                strokeWidth={2.5}
+                dot={{ r: 3, fill: "#06b6d4", strokeWidth: 1 }}
+                activeDot={{ r: 6, fill: "#38bdf8" }}
+              />
+            )}
+
+            {/* Linha Individual para cada Conta Cadastrada */}
+            {(chartMode === "all" || chartMode === "accounts") &&
+              accounts.map((acc) => (
+                <Line
+                  key={acc.id}
                   type="monotone"
-                  dataKey="poolUsageGB"
-                  name="Uso Total do Pool (GB)"
-                  fill="url(#poolGrad)"
-                  stroke="#06b6d4"
-                  strokeWidth={2.5}
-                  dot={{ r: 3, fill: "#06b6d4", strokeWidth: 1 }}
-                  activeDot={{ r: 6, fill: "#38bdf8" }}
+                  dataKey={`${acc.id}_GB`}
+                  name={`${acc.name} (GB)`}
+                  stroke={acc.color}
+                  strokeWidth={2}
+                  dot={{ r: 3, fill: acc.color }}
                 />
-              </>
-            )}
-
-            {/* Drive 1 Line */}
-            {(chartMode === "all" || chartMode === "accounts") && (
-              <Line
-                type="monotone"
-                dataKey="drive1UsageGB"
-                name="Drive 1 (GB)"
-                stroke="#38bdf8"
-                strokeWidth={2}
-                dot={{ r: 3, fill: "#38bdf8" }}
-              />
-            )}
-
-            {/* Drive 2 Line */}
-            {(chartMode === "all" || chartMode === "accounts") && (
-              <Line
-                type="monotone"
-                dataKey="drive2UsageGB"
-                name="Drive 2 (GB)"
-                stroke="#f59e0b"
-                strokeWidth={2}
-                dot={{ r: 3, fill: "#f59e0b" }}
-              />
-            )}
+              ))}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
 
       <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
-        <span>* O gráfico reflete automaticamente novos uploads e exclusões no SQLite e Google Drive.</span>
-        <span className="text-cyan-400/80 font-medium">Recharts Engine</span>
+        <span>* O gráfico recalcula automaticamente as curvas para todas as {accounts.length} contas cadastradas.</span>
+        <span className="text-cyan-400/80 font-medium">Recharts Multi-Account Engine</span>
       </div>
     </div>
   );

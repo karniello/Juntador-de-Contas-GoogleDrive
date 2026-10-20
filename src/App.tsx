@@ -26,11 +26,17 @@ import {
   Sliders,
   Play,
   Monitor,
-  Key
+  Key,
+  Plus,
+  Sparkles,
+  Package,
+  FolderSync
 } from "lucide-react";
 import { PYTHON_FILES, PythonFileItem } from "./data/pythonFiles";
 import { StorageTrendChart } from "./components/StorageTrendChart";
-import { ConnectAccountsModal } from "./components/ConnectAccountsModal";
+import { ConnectAccountsModal, AccountItem } from "./components/ConnectAccountsModal";
+import { ProgramsLauncher, ProgramItem } from "./components/ProgramsLauncher";
+import { FolderSyncManager } from "./components/FolderSyncManager";
 
 // Helpers para formatação de bytes
 function formatBytes(bytes: number): string {
@@ -46,24 +52,128 @@ interface SimulatedFile {
   nome_arquivo: string;
   tamanho_bytes: number;
   md5_hash: string;
-  conta_origem: "drive_1" | "drive_2";
+  conta_origem: string;
   id_remoto_google: string;
   data_upload: string;
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<"dashboard" | "code" | "terminal" | "gcp-guide" | "desktop-preview">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "programs" | "sync" | "code" | "terminal" | "gcp-guide" | "desktop-preview">("dashboard");
 
-  // Estado dos Drives no Simulador (Padrão: 15 GB cada = 30 GB total)
-  const [drive1Limit, setDrive1Limit] = useState<number>(15 * 1024 * 1024 * 1024);
-  const [drive2Limit, setDrive2Limit] = useState<number>(15 * 1024 * 1024 * 1024);
+  // Lista de Programas e Softwares armazenados no Google Drive
+  const [programs, setPrograms] = useState<ProgramItem[]>([
+    {
+      id: 1,
+      nome_programa: "Visual Studio Code Portable",
+      versao: "1.95.2",
+      categoria: "Desenvolvimento",
+      plataforma: "Windows",
+      descricao: "Editor de código profissional com extensões pré-configuradas e sincronizadas nas contas do Google Drive.",
+      comando_execucao: "code-portable.exe",
+      nome_arquivo: "vscode_portable_x64_2026.zip",
+      tamanho_bytes: 120 * 1024 * 1024,
+      md5_hash: "4a8f9c1e7d2b3a4f5c6e7d8a9b0c1d2e",
+      conta_origem: "drive_1",
+      id_remoto_google: "1VsCodeRemoteGoogleDriveId2026",
+      data_adicionado: "2026-10-18T10:00:00Z",
+      icon_type: "code"
+    },
+    {
+      id: 2,
+      nome_programa: "Blender Studio 3D Portable",
+      versao: "4.3.0",
+      categoria: "Design & 3D",
+      plataforma: "Windows",
+      descricao: "Suite completa de modelagem 3D, animação e renderização portátil diretamente do Drive.",
+      comando_execucao: "blender.exe",
+      nome_arquivo: "blender_4.3_portable_bundle.tar.xz",
+      tamanho_bytes: 350 * 1024 * 1024,
+      md5_hash: "9b8a7c6d5e4f3a2b1c0d9e8f7a6b5c4d",
+      conta_origem: "drive_2",
+      id_remoto_google: "1BlenderRemoteGoogleDriveId2026",
+      data_adicionado: "2026-10-18T14:30:00Z",
+      icon_type: "cube"
+    },
+    {
+      id: 3,
+      nome_programa: "7-Zip Ultra Compression Suite",
+      versao: "24.08",
+      categoria: "Utilitários",
+      plataforma: "Windows",
+      descricao: "Gerenciador de compactação de alto desempenho com suporte a 7z, zip, rar, tar e iso.",
+      comando_execucao: "7zFM.exe",
+      nome_arquivo: "7zip_ultra_compression_suite.exe",
+      tamanho_bytes: 5.2 * 1024 * 1024,
+      md5_hash: "1f2e3d4c5b6a79887766554433221100",
+      conta_origem: "drive_1",
+      id_remoto_google: "1SevenZipRemoteGoogleDriveId2026",
+      data_adicionado: "2026-10-19T08:15:00Z",
+      icon_type: "archive"
+    },
+    {
+      id: 4,
+      nome_programa: "Python Data Science Toolkit",
+      versao: "3.12.4",
+      categoria: "Desenvolvimento",
+      plataforma: "Multiplataforma",
+      descricao: "Ambiente executável portable com Jupyter, Pandas, NumPy, Scikit-Learn e bibliotecas científicas.",
+      comando_execucao: "python toolkit.pyz",
+      nome_arquivo: "python_data_science_kit.pyz",
+      tamanho_bytes: 45 * 1024 * 1024,
+      md5_hash: "778899aabbccddeeff00112233445566",
+      conta_origem: "drive_3",
+      id_remoto_google: "1PythonKitRemoteGoogleDriveId2026",
+      data_adicionado: "2026-10-19T11:20:00Z",
+      icon_type: "terminal"
+    },
+    {
+      id: 5,
+      nome_programa: "Obsidian Knowledge Vault",
+      versao: "1.7.5",
+      categoria: "Produtividade",
+      plataforma: "Multiplataforma",
+      descricao: "Sistema de anotações Markdown com plug-ins de comunidade e sincronização contínua com backup.",
+      comando_execucao: "obsidian-portable.exe",
+      nome_arquivo: "obsidian_vault_and_tools.zip",
+      tamanho_bytes: 30 * 1024 * 1024,
+      md5_hash: "deadbeefcafebabe0123456789abcdef",
+      conta_origem: "drive_1",
+      id_remoto_google: "1ObsidianRemoteGoogleDriveId2026",
+      data_adicionado: "2026-10-19T15:45:00Z",
+      icon_type: "doc"
+    }
+  ]);
+
+  // Lista dinâmica de Contas Google Drive cadastradas no Pool (N contas)
+  const [accounts, setAccounts] = useState<AccountItem[]>([
+    {
+      id: "drive_1",
+      name: "Drive 1 (Principal)",
+      email: "karniello@gmail.com",
+      limitBytes: 15 * 1024 * 1024 * 1024,
+      connected: true,
+      color: "#06b6d4", // cyan
+    },
+    {
+      id: "drive_2",
+      name: "Drive 2 (Backup)",
+      email: "backup.drive2@gmail.com",
+      limitBytes: 15 * 1024 * 1024 * 1024,
+      connected: true,
+      color: "#f59e0b", // amber
+    },
+    {
+      id: "drive_3",
+      name: "Drive 3 (Google One)",
+      email: "karniello.pro@gmail.com",
+      limitBytes: 15 * 1024 * 1024 * 1024,
+      connected: true,
+      color: "#10b981", // emerald
+    },
+  ]);
 
   // Estado do Modal de Conexão de Contas
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [account1Email, setAccount1Email] = useState("karniello@gmail.com");
-  const [account2Email, setAccount2Email] = useState("drive2.backup@gmail.com");
-  const [account1Connected, setAccount1Connected] = useState(true);
-  const [account2Connected, setAccount2Connected] = useState(true);
 
   // Arquivos armazenados no SQLite virtual simulado
   const [files, setFiles] = useState<SimulatedFile[]>([
@@ -98,7 +208,7 @@ export default function App() {
 
   // Busca e Filtros
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterAccount, setFilterAccount] = useState<"all" | "drive_1" | "drive_2">("all");
+  const [filterAccount, setFilterAccount] = useState<string>("all");
 
   // Estado do Processo de Upload no Simulador
   const [isUploading, setIsUploading] = useState(false);
@@ -131,25 +241,29 @@ Detalhes por Conta:
   ]);
   const [terminalInput, setTerminalInput] = useState("");
 
-  // Cálculo de Espaço
-  const drive1Usage = useMemo(() => {
-    return files
-      .filter(f => f.conta_origem === "drive_1")
-      .reduce((acc, curr) => acc + curr.tamanho_bytes, 0);
+  // Cálculo Dinâmico de Espaço por Conta (N Contas)
+  const accountUsageMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    accounts.forEach(a => { map[a.id] = 0; });
+    files.forEach(f => {
+      if (map[f.conta_origem] !== undefined) {
+        map[f.conta_origem] += f.tamanho_bytes;
+      } else {
+        map[f.conta_origem] = f.tamanho_bytes;
+      }
+    });
+    return map;
+  }, [accounts, files]);
+
+  const totalPoolLimit = useMemo(() => {
+    return accounts.filter(a => a.connected).reduce((acc, curr) => acc + curr.limitBytes, 0);
+  }, [accounts]);
+
+  const totalPoolUsage = useMemo(() => {
+    return files.reduce((acc, curr) => acc + curr.tamanho_bytes, 0);
   }, [files]);
 
-  const drive2Usage = useMemo(() => {
-    return files
-      .filter(f => f.conta_origem === "drive_2")
-      .reduce((acc, curr) => acc + curr.tamanho_bytes, 0);
-  }, [files]);
-
-  const drive1Free = Math.max(0, drive1Limit - drive1Usage);
-  const drive2Free = Math.max(0, drive2Limit - drive2Usage);
-
-  const totalPoolLimit = drive1Limit + drive2Limit;
-  const totalPoolUsage = drive1Usage + drive2Usage;
-  const totalPoolFree = drive1Free + drive2Free;
+  const totalPoolFree = Math.max(0, totalPoolLimit - totalPoolUsage);
   const poolUsagePct = totalPoolLimit > 0 ? (totalPoolUsage / totalPoolLimit) * 100 : 0;
 
   // Filtragem de arquivos
@@ -161,7 +275,7 @@ Detalhes por Conta:
     });
   }, [files, searchQuery, filterAccount]);
 
-  // Simulação do algoritmo Most Free Space (MFS)
+  // Simulação do algoritmo Most Free Space (MFS) para N Contas
   const simulateUpload = (name: string, sizeBytes: number) => {
     setUploadError(null);
     setIsUploading(true);
@@ -169,38 +283,36 @@ Detalhes por Conta:
     setUploadStepLog(`1. Analisando arquivo "${name}" (${formatBytes(sizeBytes)})...`);
 
     setTimeout(() => {
-      // 2. Consulta de cota MFS
-      setUploadStepLog(
-        `2. Consultando cota da API Google Drive: Drive 1 livre: ${formatBytes(drive1Free)} | Drive 2 livre: ${formatBytes(drive2Free)}...`
-      );
+      // 2. Consulta de cota MFS entre todas as contas conectadas
+      const connectedAccounts = accounts.filter(a => a.connected);
+      const candidates = connectedAccounts.map(a => {
+        const usage = accountUsageMap[a.id] || 0;
+        const free = Math.max(0, a.limitBytes - usage);
+        return { ...a, usage, free };
+      });
+
+      const summaryList = candidates.map(c => `${c.name}: ${formatBytes(c.free)} livre`).join(" | ");
+      setUploadStepLog(`2. Consultando cota em ${connectedAccounts.length} contas: ${summaryList}...`);
 
       setTimeout(() => {
-        // Verifica se cabe em algum
-        const d1Fits = drive1Free >= sizeBytes;
-        const d2Fits = drive2Free >= sizeBytes;
+        // Filtra contas que comportam o arquivo
+        const eligible = candidates.filter(c => c.free >= sizeBytes);
 
-        if (!d1Fits && !d2Fits) {
+        if (eligible.length === 0) {
           setIsUploading(false);
+          const detalhes = candidates.map(c => `${c.id.toUpperCase()}: livre ${formatBytes(c.free)}`).join(", ");
           setUploadError(
-            `Espaço insuficiente no Pool! O arquivo tem ${formatBytes(sizeBytes)}, mas nenhuma conta possui capacidade individual suficiente. (Drive 1 livre: ${formatBytes(drive1Free)}, Drive 2 livre: ${formatBytes(drive2Free)}).`
+            `Espaço insuficiente no Pool (${connectedAccounts.length} contas consultadas)! O arquivo tem ${formatBytes(sizeBytes)}, mas nenhuma conta possui capacidade individual suficiente. (${detalhes}).`
           );
           return;
         }
 
-        // Escolhe o de maior espaço livre (MFS)
-        let chosenAccount: "drive_1" | "drive_2";
-        if (d1Fits && d2Fits) {
-          chosenAccount = drive1Free >= drive2Free ? "drive_1" : "drive_2";
-        } else if (d1Fits) {
-          chosenAccount = "drive_1";
-        } else {
-          chosenAccount = "drive_2";
-        }
+        // Escolhe a conta com maior espaço livre (MFS)
+        const chosen = eligible.reduce((prev, curr) => (curr.free > prev.free ? curr : prev));
+        const chosenAccount = chosen.id;
 
         setUploadStepLog(
-          `3. Política MFS selecionou: Conta ${chosenAccount.toUpperCase()} (Maior espaço livre: ${formatBytes(
-            chosenAccount === "drive_1" ? drive1Free : drive2Free
-          )}). Calculando MD5 e iniciando streaming de chunks (2MB)...`
+          `3. MFS selecionou: ${chosen.name} (Maior espaço livre: ${formatBytes(chosen.free)}). Calculando MD5 e iniciando streaming de chunks (2MB)...`
         );
 
         // Progresso em Chunks
@@ -245,6 +357,30 @@ Detalhes por Conta:
     const target = files.find(f => f.id === id);
     if (!target) return;
     setFiles(prev => prev.filter(f => f.id !== id));
+  };
+
+  // Gestão de Programas e Softwares no Drive
+  const handleAddProgram = (newProg: ProgramItem) => {
+    setPrograms(prev => [newProg, ...prev]);
+    // Sincroniza também no catálogo simulado de arquivos SQLite
+    const newSimFile: SimulatedFile = {
+      id: Date.now(),
+      nome_arquivo: newProg.nome_arquivo,
+      tamanho_bytes: newProg.tamanho_bytes,
+      md5_hash: newProg.md5_hash,
+      conta_origem: newProg.conta_origem,
+      id_remoto_google: newProg.id_remoto_google,
+      data_upload: new Date().toISOString()
+    };
+    setFiles(prev => [newSimFile, ...prev]);
+  };
+
+  const handleDeleteProgram = (id: number) => {
+    const target = programs.find(p => p.id === id);
+    if (target) {
+      setPrograms(prev => prev.filter(p => p.id !== id));
+      setFiles(prev => prev.filter(f => f.nome_arquivo !== target.nome_arquivo));
+    }
   };
 
   // Download do Projeto Completo em ZIP
@@ -315,15 +451,23 @@ Detalhes por Conta:
     } else if (trimmed === "python main.py" || trimmed === "python main.py gui") {
       output = "Iniciando interface gráfica desktop CustomTkinter em nova janela [980x680]...";
     } else if (trimmed === "python main.py list" || trimmed === "list") {
-      output = `═══ STATUS DO POOL VIRTUAL UNIFICADO ═══
+      const accountsSummary = accounts
+        .map(a => {
+          const usage = accountUsageMap[a.id] || 0;
+          const free = Math.max(0, a.limitBytes - usage);
+          const pct = a.limitBytes > 0 ? ((usage / a.limitBytes) * 100).toFixed(1) : "0";
+          return `  • ${a.id.toUpperCase()} (${a.email}): ${formatBytes(usage)} usado / ${formatBytes(free)} livre (${pct}%)`;
+        })
+        .join("\n");
+
+      output = `═══ STATUS DO POOL VIRTUAL UNIFICADO (${accounts.length} CONTAS) ═══
 Capacidade Total Somada : ${formatBytes(totalPoolLimit)}
 Espaço Total Ocupado    : ${formatBytes(totalPoolUsage)}
 Espaço Total Livre      : ${formatBytes(totalPoolFree)}
 Uso do Pool             : [${"█".repeat(Math.round(poolUsagePct / 5))}${"░".repeat(20 - Math.round(poolUsagePct / 5))}] ${poolUsagePct.toFixed(1)}%
 
 Detalhes por Conta:
-  • DRIVE_1 (alfa.cloud@gmail.com): ${formatBytes(drive1Usage)} usado / ${formatBytes(drive1Free)} livre
-  • DRIVE_2 (beta.storage@gmail.com): ${formatBytes(drive2Usage)} usado / ${formatBytes(drive2Free)} livre
+${accountsSummary}
 
 ═══ ARQUIVOS INDEXADOS NO POOL (SQLite) ═══
 ${files
@@ -339,12 +483,44 @@ Total: ${files.length} arquivo(s) indexado(s) somando ${formatBytes(totalPoolUsa
       const simSize = 1.2 * 1024 * 1024 * 1024; // 1.2GB
       simulateUpload(fileName, simSize);
       output = `Iniciando upload de: ${fileName} (${formatBytes(simSize)})\nConsultando cota em tempo real via storageQuota...\nAlocação Most Free Space (MFS) acionada.\nEnviando chunks [████████████████████] 100.0%\n✔ Upload concluído com sucesso e gravado no SQLite!`;
-    } else if (trimmed === "python main.py auth" || trimmed === "auth") {
-      output = `═══ CONFIGURAÇÃO DE AUTENTICAÇÃO OAUTH 2.0 ═══
-Iniciando autorização para DRIVE_1...
-✔ Conta DRIVE_1 conectada com sucesso! Token: token_drive1.json
-Iniciando autorização para DRIVE_2...
-✔ Conta DRIVE_2 conectada com sucesso! Token: token_drive2.json`;
+    } else if (trimmed === "python main.py accounts" || trimmed === "accounts") {
+      output = `═══ CONTAS GOOGLE DRIVE CADASTRADAS NO POOL (${accounts.length}) ═══
+ID              NOME                      TOKEN                  EMAIL
+────────────────────────────────────────────────────────────────────────────────────────────
+${accounts.map(a => `${a.id.padEnd(15)} ${a.name.padEnd(25)} ${a.connected ? '✔ Conectado           ' : '⚠ Pendente            '} ${a.email}`).join('\n')}
+
+Use 'python main.py add-account <id>' para adicionar mais contas.
+Use 'python main.py auth <id>' para autorizar uma conta.`;
+    } else if (trimmed.startsWith("python main.py add-account") || trimmed.startsWith("add-account")) {
+      const parts = trimmed.split(" ");
+      const newId = parts[parts.length - 1] || `drive_${accounts.length + 1}`;
+      const cleanId = newId.toLowerCase().replace(/[^a-z0-9_]/g, "_");
+      if (accounts.some(a => a.id === cleanId)) {
+        output = `✖ Conta '${cleanId}' já está cadastrada no pool.`;
+      } else {
+        const palette = ["#8b5cf6", "#ec4899", "#3b82f6", "#14b8a6", "#f97316", "#06b6d4"];
+        const newAcc = {
+          id: cleanId,
+          name: `Conta ${accounts.length + 1} (${cleanId})`,
+          email: `${cleanId}@gmail.com`,
+          limitBytes: 15 * 1024 * 1024 * 1024,
+          connected: true,
+          color: palette[accounts.length % palette.length],
+        };
+        setAccounts(prev => [...prev, newAcc]);
+        output = `✔ Conta '${cleanId}' cadastrada com sucesso no pool!
+  • Token configurado para: token_${cleanId}.json
+  • Para autorizar no Google Drive agora, execute: python main.py auth ${cleanId}`;
+      }
+    } else if (trimmed.startsWith("python main.py auth") || trimmed.startsWith("auth")) {
+      const parts = trimmed.split(" ");
+      const specific = parts.length >= 4 ? parts[3] : (parts.length === 2 && parts[0] === "auth" ? parts[1] : null);
+      if (specific) {
+        output = `Iniciando autorização OAuth 2.0 para ${specific.toUpperCase()}...\n✔ Conta ${specific.toUpperCase()} conectada com sucesso! Token: token_${specific}.json`;
+      } else {
+        output = `═══ CONFIGURAÇÃO DE AUTENTICAÇÃO OAUTH 2.0 (${accounts.length} CONTAS) ═══\n` +
+          accounts.map(a => `Iniciando autorização para ${a.id.toUpperCase()}...\n✔ Conta ${a.id.toUpperCase()} conectada com sucesso! Token: token_${a.id}.json`).join("\n");
+      }
     } else if (trimmed.startsWith("delete") || trimmed.startsWith("python main.py delete")) {
       const parts = trimmed.split(" ");
       const idOrName = parts[parts.length - 1];
@@ -355,8 +531,67 @@ Iniciando autorização para DRIVE_2...
       } else {
         output = `✖ Arquivo '${idOrName}' não encontrado no catálogo local SQLite.`;
       }
+    } else if (trimmed === "python main.py programs" || trimmed === "programs") {
+      output = `═══ PROGRAMAS E SOFTWARES NO GOOGLE DRIVE POOL (${programs.length}) ═══
+ID   PROGRAMA                       VERSÃO     CATEGORIA        PLATAFORMA         CONTA DRIVE    TAMANHO
+─────────────────────────────────────────────────────────────────────────────────────────────────────────
+${programs.map(p => `${p.id.toString().padEnd(4)} ${p.nome_programa.padEnd(30)} ${p.versao.padEnd(10)} ${p.categoria.padEnd(16)} ${p.plataforma.padEnd(18)} ${p.conta_origem.padEnd(14)} ${formatBytes(p.tamanho_bytes)}`).join('\n')}
+
+Para executar ou baixar um programa: python main.py launch <ID_ou_NOME>
+Para adicionar novo software: python main.py add-program <arquivo> --nome "Nome"`;
+    } else if (trimmed.startsWith("python main.py launch") || trimmed.startsWith("launch")) {
+      const parts = trimmed.split(" ");
+      const idOrName = parts[parts.length - 1];
+      const prog = programs.find(p => p.id.toString() === idOrName || p.nome_programa.toLowerCase().includes(idOrName.toLowerCase()));
+      if (prog) {
+        output = `Iniciando inicialização do programa '${prog.nome_programa}' do Drive...
+✔ Programa pronto para execução!
+  • Nome: ${prog.nome_programa} (v${prog.versao})
+  • Categoria: ${prog.categoria} | Plataforma: ${prog.plataforma}
+  • Conta no Drive: ${prog.conta_origem.toUpperCase()}
+  • Caminho em Cache Local: ~/.drive_pool/cache_programas/${prog.nome_arquivo}
+  • Comando de Execução: ${prog.comando_execucao}
+Executando em ambiente local...`;
+      } else {
+        output = `✖ Programa '${idOrName}' não encontrado no catálogo do Drive. Execute 'python main.py programs' para ver os softwares.`;
+      }
+    } else if (trimmed === "python main.py sync-folders" || trimmed === "sync-folders") {
+      output = `═══ PASTAS LOCAIS DESIGNADAS PARA AUTO-SYNC COM O POOL (MFS WATCHER) ═══
+ID   NOME                      CAMINHO LOCAL                  STATUS     RECURSIVO  ARQUIVOS   TAMANHO
+──────────────────────────────────────────────────────────────────────────────────────────────────────────
+1    Documentos & Projetos     ~/Documentos/Projetos_Ativos   Ativo      Sim        6          176.0 MB
+2    Backups e Configs         ~/Backups/Configs_e_Bancos     Ativo      Não        3          90.0 MB
+3    Imagens e Ativos          ~/Imagens/Trabalho_Raw         Pausado    Sim        0          0 B
+
+Dica: Para iniciar o watcher em tempo real: python main.py watch
+Para forçar sincronização imediata: python main.py sync`;
+    } else if (trimmed.startsWith("python main.py watch") || trimmed.startsWith("watch")) {
+      output = `📡 MFS Auto-Sync Watcher Iniciado
+Intervalo de verificação: 5.0s | Debounce: 1.5s
+Monitorando 2 pastas designadas ativas:
+  📁 Documentos & Projetos: ~/Documentos/Projetos_Ativos
+  📁 Backups e Configs: ~/Backups/Configs_e_Bancos
+
+[Varredura 1] Verificando alterações locais...
+✔ [MFS Sync] relatorio_financeiro_q3.xlsx (14.0 MB) ➔ DRIVE_1 (10.2 GB livres)
+✔ [MFS Sync] arquitetura_storage_pool.pdf (40.0 MB) ➔ DRIVE_2 (12.9 GB livres)
+Sincronização contínua ativa. Pressione Ctrl+C para encerrar.`;
+    } else if (trimmed.startsWith("python main.py add-sync-folder") || trimmed.startsWith("add-sync-folder")) {
+      const parts = trimmed.split(" ");
+      const folderPath = parts[parts.length - 1] || "./nova_pasta";
+      output = `✔ Diretório local verificado: ${folderPath}
+✔ Pasta designada com sucesso para Auto-Sync!
+  • Nome: ${folderPath.split("/").pop() || folderPath}
+  • Caminho: ${folderPath}
+  • Modo: Recursivo (subpastas inclusas)
+Inicie o watcher com: python main.py watch`;
+    } else if (trimmed.startsWith("python main.py sync") || trimmed === "sync") {
+      output = `Iniciando sincronização de todas as pastas designadas ativas...
+• Consultando cotas de todas as contas no Pool Virtual...
+• Alocando novos arquivos pela política Most Free Space (MFS)...
+✔ Processadas 2 pasta(s). Total de 2 arquivo(s) enviados (54.0 MB). Todos os hashes gravados no SQLite!`;
     } else {
-      output = `Comando executado: "${trimmed}". Comandos disponíveis: list, upload <arquivo>, delete <id>, auth, status, clear`;
+      output = `Comando executado: "${trimmed}". Comandos disponíveis: list, upload <arquivo>, delete <id>, accounts, add-account <id>, programs, launch <id>, sync-folders, add-sync-folder <dir>, sync, watch, auth [id], status, clear`;
     }
 
     setTerminalHistory(prev => [...prev, { cmd: trimmed, output }]);
@@ -398,6 +633,36 @@ Iniciando autorização para DRIVE_2...
           >
             <Layers className="w-3.5 h-3.5" />
             <span>Pool Simulator</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("programs")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition cursor-pointer ${
+              activeTab === "programs"
+                ? "bg-cyan-600 text-white shadow-sm"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/40"
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-cyan-300" />
+            <span>Programas no Drive</span>
+            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-cyan-400/20 text-cyan-300 ml-0.5">
+              {programs.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("sync")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition cursor-pointer ${
+              activeTab === "sync"
+                ? "bg-emerald-600 text-white shadow-sm"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/40"
+            }`}
+          >
+            <FolderSync className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Pastas Auto-Sync</span>
+            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-400/20 text-emerald-300 ml-0.5">
+              MFS
+            </span>
           </button>
 
           <button
@@ -524,116 +789,202 @@ Iniciando autorização para DRIVE_2...
                 </div>
               </div>
 
-              {/* Pool Big Progress Bar */}
+              {/* Pool Big Progress Bar Dinâmica (N Contas) */}
               <div className="space-y-2">
                 <div className="h-4 w-full bg-slate-950 rounded-full overflow-hidden p-0.5 border border-slate-800/80 flex">
-                  <div
-                    style={{ width: `${(drive1Usage / totalPoolLimit) * 100}%` }}
-                    className="h-full bg-cyan-500 rounded-l-full transition-all duration-500 relative group cursor-pointer"
-                    title={`Drive 1: ${formatBytes(drive1Usage)}`}
-                  />
-                  <div
-                    style={{ width: `${(drive2Usage / totalPoolLimit) * 100}%` }}
-                    className="h-full bg-amber-500 transition-all duration-500 relative group cursor-pointer"
-                    title={`Drive 2: ${formatBytes(drive2Usage)}`}
-                  />
+                  {accounts.map((acc, index) => {
+                    const usage = accountUsageMap[acc.id] || 0;
+                    const pct = totalPoolLimit > 0 ? (usage / totalPoolLimit) * 100 : 0;
+                    return (
+                      <div
+                        key={acc.id}
+                        style={{ width: `${pct}%`, backgroundColor: acc.color }}
+                        className={`h-full transition-all duration-500 relative group cursor-pointer ${
+                          index === 0 ? "rounded-l-full" : ""
+                        }`}
+                        title={`${acc.name}: ${formatBytes(usage)}`}
+                      />
+                    );
+                  })}
                 </div>
 
-                <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
-                  <div className="flex items-center gap-4">
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-sm bg-cyan-500 inline-block" />
-                      Drive 1 Ocupado ({formatBytes(drive1Usage)})
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-sm bg-amber-500 inline-block" />
-                      Drive 2 Ocupado ({formatBytes(drive2Usage)})
-                    </span>
+                <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-400 gap-2 px-1">
+                  <div className="flex flex-wrap items-center gap-3">
+                    {accounts.map((acc) => (
+                      <span key={acc.id} className="flex items-center gap-1.5">
+                        <span
+                          className="w-2.5 h-2.5 rounded-sm inline-block"
+                          style={{ backgroundColor: acc.color }}
+                        />
+                        <span className="text-slate-300 font-medium">{acc.name}</span>
+                        <span className="text-slate-400">({formatBytes(accountUsageMap[acc.id] || 0)})</span>
+                      </span>
+                    ))}
                   </div>
-                  <span className="text-slate-500">MFS: Most Free Space Allocation Strategy</span>
+                  <span className="text-slate-500">MFS: Most Free Space ({accounts.length} contas ativas)</span>
                 </div>
               </div>
 
-              {/* Sub-cards for Drive 1 and Drive 2 */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-                {/* Drive 1 Card */}
-                <div className="p-4 rounded-xl border border-cyan-500/20 bg-slate-950/60 relative overflow-hidden">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center font-bold text-xs border border-cyan-500/20">
-                        D1
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                          <span>Google Drive 1</span>
-                          <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20 font-medium">
-                            Conectado
-                          </span>
-                        </div>
-                        <div className="text-[11px] text-slate-400">token_drive1.json • conta-1@gmail.com</div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs font-bold text-cyan-300">{formatBytes(drive1Free)} livre</div>
-                      <div className="text-[10px] text-slate-400">Total: {formatBytes(drive1Limit)}</div>
-                    </div>
-                  </div>
+              {/* Grid Dinâmico de Cards para Todas as N Contas */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
+                {accounts.map((acc) => {
+                  const usage = accountUsageMap[acc.id] || 0;
+                  const free = Math.max(0, acc.limitBytes - usage);
+                  const pct = acc.limitBytes > 0 ? (usage / acc.limitBytes) * 100 : 0;
+                  const fileCount = files.filter((f) => f.conta_origem === acc.id).length;
 
-                  <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden mt-3">
+                  return (
                     <div
-                      style={{ width: `${(drive1Usage / drive1Limit) * 100}%` }}
-                      className="h-full bg-cyan-500 rounded-full transition-all duration-300"
-                    />
-                  </div>
-                  <div className="flex justify-between items-center text-[10px] text-slate-400 mt-1.5">
-                    <span>Usado: {formatBytes(drive1Usage)} ({((drive1Usage / drive1Limit) * 100).toFixed(1)}%)</span>
-                    <span className="text-cyan-400/80">
-                      {files.filter(f => f.conta_origem === "drive_1").length} arquivos
-                    </span>
-                  </div>
-                </div>
-
-                {/* Drive 2 Card */}
-                <div className="p-4 rounded-xl border border-amber-500/20 bg-slate-950/60 relative overflow-hidden">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center font-bold text-xs border border-amber-500/20">
-                        D2
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                          <span>Google Drive 2</span>
-                          <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20 font-medium">
-                            Conectado
-                          </span>
+                      key={acc.id}
+                      className="p-4 rounded-xl border bg-slate-950/60 relative overflow-hidden transition hover:border-slate-700"
+                      style={{ borderColor: `${acc.color}30` }}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs"
+                            style={{
+                              backgroundColor: `${acc.color}15`,
+                              color: acc.color,
+                              border: `1px solid ${acc.color}30`,
+                            }}
+                          >
+                            {acc.id.toUpperCase().slice(0, 3)}
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                              <span>{acc.name}</span>
+                              {acc.connected ? (
+                                <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20 font-medium">
+                                  Conectado
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.2 rounded border border-slate-700 font-medium">
+                                  Desconectado
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-slate-400 truncate max-w-[170px]">
+                              {acc.email}
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-[11px] text-slate-400">token_drive2.json • conta-2@gmail.com</div>
+                        <div className="text-right">
+                          <div className="text-xs font-bold" style={{ color: acc.color }}>
+                            {formatBytes(free)} livre
+                          </div>
+                          <div className="text-[10px] text-slate-400">Total: {formatBytes(acc.limitBytes)}</div>
+                        </div>
+                      </div>
+
+                      <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden mt-3">
+                        <div
+                          style={{ width: `${pct}%`, backgroundColor: acc.color }}
+                          className="h-full rounded-full transition-all duration-300"
+                        />
+                      </div>
+                      <div className="flex justify-between items-center text-[10px] text-slate-400 mt-1.5">
+                        <span>
+                          Usado: {formatBytes(usage)} ({pct.toFixed(1)}%)
+                        </span>
+                        <span style={{ color: acc.color }} className="font-medium">
+                          {fileCount} arquivos
+                        </span>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-xs font-bold text-amber-300">{formatBytes(drive2Free)} livre</div>
-                      <div className="text-[10px] text-slate-400">Total: {formatBytes(drive2Limit)}</div>
-                    </div>
-                  </div>
+                  );
+                })}
 
-                  <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden mt-3">
-                    <div
-                      style={{ width: `${(drive2Usage / drive2Limit) * 100}%` }}
-                      className="h-full bg-amber-500 rounded-full transition-all duration-300"
-                    />
+                {/* Quick Add Account Card */}
+                <div
+                  onClick={() => setIsAuthModalOpen(true)}
+                  className="p-4 rounded-xl border border-dashed border-slate-800 hover:border-cyan-500/50 bg-slate-950/30 hover:bg-slate-900/40 cursor-pointer flex flex-col items-center justify-center gap-2 text-slate-400 hover:text-cyan-300 transition group min-h-[110px]"
+                >
+                  <div className="w-8 h-8 rounded-xl bg-slate-800 group-hover:bg-cyan-500/20 group-hover:text-cyan-400 flex items-center justify-center transition">
+                    <Plus className="w-4 h-4" />
                   </div>
-                  <div className="flex justify-between items-center text-[10px] text-slate-400 mt-1.5">
-                    <span>Usado: {formatBytes(drive2Usage)} ({((drive2Usage / drive2Limit) * 100).toFixed(1)}%)</span>
-                    <span className="text-amber-400/80">
-                      {files.filter(f => f.conta_origem === "drive_2").length} arquivos
+                  <div className="text-center">
+                    <span className="text-xs font-semibold block">+ Adicionar Nova Conta</span>
+                    <span className="text-[10px] text-slate-500">
+                      Integre mais contas Google Drive ao Pool
                     </span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Storage Usage Growth Trend Chart (Recharts) */}
-            <StorageTrendChart files={files} totalPoolLimitBytes={totalPoolLimit} />
+            {/* Quick Access Card: Programas & Softwares Armazenados no Drive */}
+            <div className="rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-950/40 via-slate-900/90 to-blue-950/40 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg shadow-cyan-950/10">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-600/20 text-cyan-400 flex items-center justify-center shrink-0 border border-cyan-500/30">
+                  <Sparkles className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-white">
+                      Programas & Softwares no Google Drive
+                    </h3>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                      {programs.length} Softwares Disponíveis
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
+                    Acesse seu catálogo portátil de instaladores e programas (.exe, .AppImage, .zip, .py).
+                    Execute com 1 clique, baixe para o computador ou envie novos softwares com balanceamento inteligente no Drive.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                <button
+                  onClick={() => setActiveTab("programs")}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold shadow-md shadow-cyan-600/20 transition active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <span>Acessar Programas no Drive</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Access Card: Sincronização Automática de Pastas Locais (MFS Watcher) */}
+            <div className="rounded-2xl border border-emerald-500/30 bg-gradient-to-r from-emerald-950/40 via-slate-900/90 to-teal-950/40 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg shadow-emerald-950/10">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-600/20 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30">
+                  <FolderSync className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-white">
+                      Auto-Sync de Pastas Locais com o Pool
+                    </h3>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      MFS Watcher Ativo
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
+                    Designe pastas no seu disco para sincronização automática. O watcher monitora alterações e
+                    executa o upload para a conta Google Drive com maior espaço livre (MFS).
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                <button
+                  onClick={() => setActiveTab("sync")}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <span>Gerenciar Pastas & Watcher</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Storage Usage Growth Trend Chart (Recharts) Dinâmico para N Contas */}
+            <StorageTrendChart
+              files={files}
+              accounts={accounts}
+              totalPoolLimitBytes={totalPoolLimit}
+            />
 
             {/* Interactive Upload Tester & MFS Simulator */}
             <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 shadow-lg">
@@ -750,12 +1101,15 @@ Iniciando autorização para DRIVE_2...
                   {/* Account filter */}
                   <select
                     value={filterAccount}
-                    onChange={e => setFilterAccount(e.target.value as any)}
+                    onChange={e => setFilterAccount(e.target.value)}
                     className="px-2.5 py-1.5 text-xs rounded-lg bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-cyan-500/60"
                   >
-                    <option value="all">Todas as Contas</option>
-                    <option value="drive_1">Apenas Drive 1</option>
-                    <option value="drive_2">Apenas Drive 2</option>
+                    <option value="all">Todas as Contas ({accounts.length})</option>
+                    {accounts.map(acc => (
+                      <option key={acc.id} value={acc.id}>
+                        {acc.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -782,38 +1136,42 @@ Iniciando autorização para DRIVE_2...
                         </td>
                       </tr>
                     ) : (
-                      filteredFiles.map(file => (
-                        <tr key={file.id} className="hover:bg-slate-800/30 transition">
-                          <td className="py-3 px-4 text-center font-mono text-slate-400">
-                            #{file.id}
-                          </td>
-                          <td className="py-3 px-4 font-medium text-slate-200 flex items-center gap-2">
-                            <span className="p-1 rounded bg-slate-800 text-slate-400">
-                              <HardDrive className="w-3.5 h-3.5" />
-                            </span>
-                            <span>{file.nome_arquivo}</span>
-                          </td>
-                          <td className="py-3 px-4 text-slate-300 font-mono">
-                            {formatBytes(file.tamanho_bytes)}
-                          </td>
-                          <td className="py-3 px-4 text-center">
-                            <span
-                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase border ${
-                                file.conta_origem === "drive_1"
-                                  ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/20"
-                                  : "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                              }`}
-                            >
-                              {file.conta_origem.toUpperCase()}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 font-mono text-slate-400 text-[11px]">
-                            {file.md5_hash.slice(0, 16)}...
-                          </td>
-                          <td className="py-3 px-4 text-slate-400 text-[11px]">
-                            {file.data_upload.slice(0, 19).replace("T", " ")}
-                          </td>
-                          <td className="py-3 px-4 text-right">
+                      filteredFiles.map(file => {
+                        const accMeta = accounts.find(a => a.id === file.conta_origem);
+                        const badgeColor = accMeta ? accMeta.color : "#06b6d4";
+                        return (
+                          <tr key={file.id} className="hover:bg-slate-800/30 transition">
+                            <td className="py-3 px-4 text-center font-mono text-slate-400">
+                              #{file.id}
+                            </td>
+                            <td className="py-3 px-4 font-medium text-slate-200 flex items-center gap-2">
+                              <span className="p-1 rounded bg-slate-800 text-slate-400">
+                                <HardDrive className="w-3.5 h-3.5" />
+                              </span>
+                              <span>{file.nome_arquivo}</span>
+                            </td>
+                            <td className="py-3 px-4 text-slate-300 font-mono">
+                              {formatBytes(file.tamanho_bytes)}
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <span
+                                className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase border"
+                                style={{
+                                  backgroundColor: `${badgeColor}15`,
+                                  color: badgeColor,
+                                  borderColor: `${badgeColor}35`,
+                                }}
+                              >
+                                {file.conta_origem.toUpperCase()}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 font-mono text-slate-400 text-[11px]">
+                              {file.md5_hash.slice(0, 16)}...
+                            </td>
+                            <td className="py-3 px-4 text-slate-400 text-[11px]">
+                              {file.data_upload.slice(0, 19).replace("T", " ")}
+                            </td>
+                            <td className="py-3 px-4 text-right">
                             <div className="flex items-center justify-end gap-1.5">
                               <button
                                 onClick={() => {
@@ -834,13 +1192,59 @@ Iniciando autorização para DRIVE_2...
                             </div>
                           </td>
                         </tr>
-                      ))
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
               </div>
             </div>
           </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* TAB 1.5: PROGRAMAS & SOFTWARES LAUNCHER NO DRIVE        */}
+        {/* ======================================================== */}
+        {activeTab === "programs" && (
+          <ProgramsLauncher
+            accounts={accounts}
+            programs={programs}
+            onAddProgram={handleAddProgram}
+            onDeleteProgram={handleDeleteProgram}
+            onOpenAccountsModal={() => setIsAuthModalOpen(true)}
+          />
+        )}
+
+        {/* ======================================================== */}
+        {/* TAB 1.6: PASTAS LOCAIS AUTO-SYNC (MFS WATCHER)           */}
+        {/* ======================================================== */}
+        {activeTab === "sync" && (
+          <FolderSyncManager
+            accounts={accounts.map(a => ({
+              id: a.id,
+              name: a.name,
+              used: accountUsageMap[a.id] || 0,
+              total: a.limitBytes
+            }))}
+            onFileUploadedToPool={(file) => {
+              setFiles(prev => [
+                {
+                  id: Date.now(),
+                  nome_arquivo: file.nome_arquivo,
+                  tamanho_bytes: file.tamanho_bytes,
+                  md5_hash: file.md5_hash,
+                  conta_origem: file.conta_origem,
+                  id_remoto_google: file.id_remoto_google,
+                  data_upload: new Date().toISOString()
+                },
+                ...prev
+              ]);
+            }}
+            onOpenTerminalWithCommand={(cmd) => {
+              setActiveTab("terminal");
+              setTerminalInput(cmd);
+            }}
+          />
         )}
 
         {/* ======================================================== */}
@@ -881,25 +1285,49 @@ Iniciando autorização para DRIVE_2...
               {/* GUI Content */}
               <div className="p-6 space-y-5">
                 {/* Header in GUI */}
-                <div className="p-4 rounded-xl bg-[#1e293b] flex items-center justify-between">
+                <div className="p-4 rounded-xl bg-[#1e293b] flex flex-col md:flex-row md:items-center justify-between gap-3">
                   <div>
                     <h2 className="text-base font-bold text-[#38bdf8]">Google Drive Virtual Storage Pool</h2>
                     <p className="text-xs text-slate-400">
                       Capacidade Unificada Multi-Conta • Alocação Inteligente MFS (Most Free Space)
                     </p>
                   </div>
-                  <button
-                    onClick={() => setIsAuthModalOpen(true)}
-                    className="px-3 py-1.5 rounded-lg bg-[#334155] hover:bg-[#475569] text-xs font-medium text-slate-200 transition active:scale-95 flex items-center gap-1.5"
-                  >
-                    <span>⚙ Conectar Contas</span>
-                  </button>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={() => setActiveTab("programs")}
+                      className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white transition active:scale-95 flex items-center gap-1.5 shadow-sm cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>🚀 Programas no Drive ({programs.length})</span>
+                    </button>
+                    <button
+                      onClick={() => setActiveTab("sync")}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white transition active:scale-95 flex items-center gap-1.5 shadow-sm cursor-pointer"
+                    >
+                      <FolderSync className="w-3.5 h-3.5" />
+                      <span>📁 Pastas Auto-Sync</span>
+                    </button>
+                    <button
+                      onClick={() => setIsAuthModalOpen(true)}
+                      className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-xs font-semibold text-white transition active:scale-95 flex items-center gap-1.5 shadow-sm cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ Adicionar Conta</span>
+                    </button>
+                    <button
+                      onClick={() => setIsAuthModalOpen(true)}
+                      className="px-3 py-1.5 rounded-lg bg-[#334155] hover:bg-[#475569] text-xs font-medium text-slate-200 transition active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Key className="w-3.5 h-3.5" />
+                      <span>⚙ Conectar Contas ({accounts.length})</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Pool Status Card in GUI */}
                 <div className="p-5 rounded-xl bg-[#1e293b] space-y-3">
                   <div className="flex justify-between items-center text-xs">
-                    <span className="font-bold text-slate-300">CAPACIDADE TOTAL DO POOL (DRIVE 1 + DRIVE 2)</span>
+                    <span className="font-bold text-slate-300">CAPACIDADE TOTAL DO POOL ({accounts.length} CONTAS UNIFICADAS)</span>
                     <span className="font-bold text-[#38bdf8]">
                       Ocupado: {formatBytes(totalPoolUsage)} ({poolUsagePct.toFixed(1)}%) • Livre: {formatBytes(totalPoolFree)} • Total: {formatBytes(totalPoolLimit)}
                     </span>
@@ -912,32 +1340,26 @@ Iniciando autorização para DRIVE_2...
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 pt-2">
-                    <div className="p-3 rounded-lg bg-[#0f172a]">
-                      <div className="text-xs font-bold text-slate-200">Conta 1 (drive_1)</div>
-                      <div className="text-[11px] text-slate-400">
-                        {formatBytes(drive1Usage)} / {formatBytes(drive1Limit)} (Livre: {formatBytes(drive1Free)})
-                      </div>
-                      <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden mt-2">
-                        <div
-                          style={{ width: `${(drive1Usage / drive1Limit) * 100}%` }}
-                          className="h-full bg-cyan-500 rounded-full"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="p-3 rounded-lg bg-[#0f172a]">
-                      <div className="text-xs font-bold text-slate-200">Conta 2 (drive_2)</div>
-                      <div className="text-[11px] text-slate-400">
-                        {formatBytes(drive2Usage)} / {formatBytes(drive2Limit)} (Livre: {formatBytes(drive2Free)})
-                      </div>
-                      <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden mt-2">
-                        <div
-                          style={{ width: `${(drive2Usage / drive2Limit) * 100}%` }}
-                          className="h-full bg-amber-500 rounded-full"
-                        />
-                      </div>
-                    </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
+                    {accounts.map(acc => {
+                      const usage = accountUsageMap[acc.id] || 0;
+                      const free = Math.max(0, acc.limitBytes - usage);
+                      const pct = acc.limitBytes > 0 ? (usage / acc.limitBytes) * 100 : 0;
+                      return (
+                        <div key={acc.id} className="p-3 rounded-lg bg-[#0f172a]">
+                          <div className="text-xs font-bold text-slate-200 truncate">{acc.name}</div>
+                          <div className="text-[11px] text-slate-400">
+                            {formatBytes(usage)} / {formatBytes(acc.limitBytes)} (Livre: {formatBytes(free)})
+                          </div>
+                          <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden mt-2">
+                            <div
+                              style={{ width: `${pct}%`, backgroundColor: acc.color }}
+                              className="h-full rounded-full"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -1302,30 +1724,20 @@ Iniciando autorização para DRIVE_2...
         <p>Google Drive Virtual Storage Pool • Engenharia de Software Sênior em Python & Cloud APIs • 2026</p>
       </footer>
 
-      {/* Modal de Conexão de Contas */}
+      {/* Modal de Conexão de Contas (N Contas) */}
       <ConnectAccountsModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
-        account1Email={account1Email}
-        setAccount1Email={setAccount1Email}
-        account2Email={account2Email}
-        setAccount2Email={setAccount2Email}
-        account1Connected={account1Connected}
-        setAccount1Connected={setAccount1Connected}
-        account2Connected={account2Connected}
-        setAccount2Connected={setAccount2Connected}
-        drive1Limit={drive1Limit}
-        setDrive1Limit={setDrive1Limit}
-        drive2Limit={drive2Limit}
-        setDrive2Limit={setDrive2Limit}
+        accounts={accounts}
+        setAccounts={setAccounts}
         onGoToGcpGuide={() => {
           setIsAuthModalOpen(false);
           setActiveTab("gcp-guide");
         }}
-        onRunCliAuth={() => {
+        onRunCliAuth={(accountId) => {
           setIsAuthModalOpen(false);
           setActiveTab("terminal");
-          handleRunCommand("python main.py auth");
+          handleRunCommand(accountId ? `python main.py auth ${accountId}` : "python main.py auth");
         }}
       />
     </div>

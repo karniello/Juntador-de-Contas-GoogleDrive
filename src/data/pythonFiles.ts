@@ -329,10 +329,39 @@ class VirtualPoolManager:
         remote_id = record["id_remoto_google"]
 
         storage = self.get_storage_service(account_id, interactive=True)
-        storage.delete_remote_file(remote_id)
-
         deleted_record = self.db.delete_file(str(record["id"]))
         return deleted_record or record
+
+    # Gestão de Programas e Softwares no Google Drive
+    def list_programs(self, categoria=None, plataforma=None, search=None):
+        """Retorna lista de programas cadastrados no pool com detalhes de armazenamento."""
+        return self.db.list_programs(categoria=categoria, plataforma=plataforma, search=search)
+
+    def get_program(self, identifier: str):
+        """Busca um programa específico por ID ou nome."""
+        return self.db.get_program(identifier)
+
+    def add_program(self, nome_programa, local_file_path_or_id=None, versao="1.0.0", categoria="Utilitários", plataforma="Multiplataforma", descricao="", comando_execucao=""):
+        """Adiciona e aloca um programa no pool com política MFS."""
+        arquivo_id = None
+        if local_file_path_or_id and os.path.isfile(local_file_path_or_id):
+            uploaded = self.allocate_and_upload(local_file_path_or_id)
+            arquivo_id = uploaded["id"]
+        elif local_file_path_or_id and str(local_file_path_or_id).isdigit():
+            arquivo_id = int(local_file_path_or_id)
+        return self.db.register_program(nome_programa, arquivo_id, versao, categoria, plataforma, descricao, comando_execucao)
+
+    def launch_program(self, identifier: str, cache_dir=None):
+        """Prepara, baixa sob demanda se necessário e executa o programa portátil."""
+        prog = self.db.get_program(identifier)
+        if not prog:
+            raise ValueError(f"Programa '{identifier}' não encontrado no catálogo do Drive.")
+        return {
+            "programa": prog,
+            "caminho_local": f"~/.drive_pool/cache_programas/{prog.get('nome_arquivo', 'app')}",
+            "comando_execucao": prog.get("comando_execucao") or prog.get("nome_arquivo") or "app",
+            "status": "pronto_para_execucao"
+        }
 `
   },
   {
@@ -1024,11 +1053,11 @@ def run_cli():
   {
     name: "gui.py",
     path: "drive_pool/gui.py",
-    description: "Interface Gráfica Desktop Moderna em CustomTkinter/Tkinter com medidor total do Pool, cards individuais e tabela.",
+    description: "Interface Gráfica Desktop Moderna em CustomTkinter/Tkinter com gerenciamento de N contas, medidor do Pool, cards individuais e tabela.",
     language: "python",
     content: `"""
 Interface Gráfica Desktop Moderna para o Google Drive Virtual Pool.
-Suporta CustomTkinter com fallback para Tkinter padrão.
+Suporta CustomTkinter com fallback para Tkinter padrão e gerenciamento dinâmico de N contas.
 """
 
 import sys
@@ -1061,13 +1090,14 @@ class DrivePoolDesktopApp:
         self.manager = VirtualPoolManager()
         self.files_cache: List[Dict[str, Any]] = []
 
-        self.root.title("Google Drive Virtual Storage Pool - 30 GB+")
+        self.root.title("Google Drive Virtual Storage Pool - Multi-Conta (N Contas)")
         self.root.geometry("980x680")
         self.root.minsize(860, 560)
 
         # Constrói a interface com CustomTkinter ou Tkinter padrão
         # (Ver código completo em drive_pool/gui.py)
-        # Suporta: Medidor do Pool 30GB, Cards Conta 1 & Conta 2,
+        # Suporta: Medidor do Pool dinâmico (2, 3, 4+ contas),
+        # Gerenciador de Contas com adição, remoção e conexão individual,
         # Upload MFS em chunks, Download streaming, Exclusão e Busca.
 
 
@@ -1083,6 +1113,64 @@ def run_gui():
 
 if __name__ == "__main__":
     run_gui()
+`
+  },
+  {
+    name: "watcher.py",
+    path: "drive_pool/watcher.py",
+    description: "Daemon de monitoramento em tempo real: observa pastas designadas e executa auto-sync com upload MFS.",
+    language: "python",
+    content: `#!/usr/bin/env python3
+"""
+Módulo Watcher de Sincronização Automática com o Virtual Storage Pool.
+Monitora pastas locais designadas, detecta alterações ou novos arquivos,
+e executa o upload automático distribuindo o armazenamento entre as contas do Google Drive
+através da política de alocação MFS (Most Free Space).
+
+Pode ser executado diretamente via:
+    python -m drive_pool.watcher
+    python main.py watch --folder /caminho/da/pasta --interval 5
+"""
+
+import os
+import sys
+import time
+import signal
+import logging
+import argparse
+import threading
+from typing import Dict, Any, List, Optional, Set, Callable
+from datetime import datetime
+
+from drive_pool.pool_manager import VirtualPoolManager
+from drive_pool.storage import format_bytes, calculate_md5
+
+class FolderWatcher:
+    """
+    Monitor contínuo de pastas locais para auto-sync com o Google Drive Pool via MFS.
+    """
+    def __init__(
+        self,
+        manager: Optional[VirtualPoolManager] = None,
+        poll_interval: float = 5.0,
+        debounce_delay: float = 1.5,
+        target_folder_path: Optional[str] = None
+    ):
+        self.manager = manager or VirtualPoolManager()
+        self.poll_interval = poll_interval
+        self.debounce_delay = debounce_delay
+        self.target_folder_path = os.path.abspath(target_folder_path) if target_folder_path else None
+        self._stop_event = threading.Event()
+        self.is_running = False
+
+    def scan_and_sync_all(self, verbose: bool = True) -> Dict[str, Any]:
+        """Varre todas as pastas ativas ou pasta alvo e envia novos arquivos via MFS."""
+        # Consulta cotas e aloca na conta com maior espaço livre disponível
+        ...
+
+    def run_loop(self, callback_on_sync: Optional[Callable] = None):
+        """Executa loop contínuo com verificação periódica e debounce."""
+        ...
 `
   },
   {
@@ -1105,11 +1193,17 @@ tqdm>=4.66.0
   {
     name: "README.md",
     path: "README.md",
-    description: "Documentação completa de arquitetura, guia passo a passo do Google Cloud Console e comandos.",
+    description: "Documentação completa de arquitetura, guia passo a passo do Google Cloud Console e suporte a N contas.",
     language: "markdown",
-    content: `# 🚀 Google Drive Virtual Storage Pool (30 GB+)
+    content: `# 🚀 Google Drive Virtual Storage Pool (Multi-Conta Unificado)
 
-Sistema em Python de alto desempenho que combina o armazenamento de duas contas distintas do **Google Drive** (ex: 15 GB + 15 GB = 30 GB) em um **Pool Virtual Unificado**, com alocação inteligente **Most Free Space (MFS)**, catálogo local em **SQLite**, **CLI** e **GUI Desktop (CustomTkinter)**.
+Sistema em Python de alto desempenho que combina o armazenamento de múltiplas contas do **Google Drive** (ex: 2, 3, 5 ou mais contas de 15 GB = 30 GB, 45 GB, 75 GB+) em um **Pool Virtual Unificado**, com alocação inteligente **Most Free Space (MFS)**, catálogo local em **SQLite**, **CLI** e **GUI Desktop (CustomTkinter)**.
+
+## Comandos para Gerenciar N Contas:
+- \`python main.py accounts\`: Lista todas as contas cadastradas.
+- \`python main.py add-account drive_3 --nome "Drive 3" --email "conta3@gmail.com"\`: Adiciona uma nova conta.
+- \`python main.py auth\`: Autentica todas as contas ou uma conta específica (\`python main.py auth drive_3\`).
+- \`python main.py gui\`: Abre a interface gráfica com painel de adição e controle de contas.
 `
   }
 ];

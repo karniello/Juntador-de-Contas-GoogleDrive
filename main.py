@@ -6,6 +6,14 @@ Suporta execução tanto via Linha de Comando (CLI) quanto via Interface Gráfic
 Uso:
   python main.py               -> Abre a Interface Gráfica Desktop (CustomTkinter/Tkinter)
   python main.py gui           -> Abre a Interface Gráfica Desktop
+  python main.py programs      -> Lista programas e softwares armazenados no Drive
+  python main.py launch <id>   -> Executa / abre um programa portátil do Drive
+  python main.py add-program   -> Adiciona novo software ao catálogo do Drive
+  python main.py sync-folders  -> Lista pastas locais designadas para sincronização
+  python main.py add-sync-folder <dir> -> Designa pasta local para auto-sync
+  python main.py sync [id]     -> Sincroniza pasta imediatamente usando política MFS
+  python main.py watch         -> Inicia watcher em tempo real com upload automático MFS
+  python main.py accounts      -> Gerencia N contas Google Drive no pool
   python main.py list          -> Lista arquivos unificados e cota total do Pool
   python main.py upload <arq>  -> Envia arquivo usando alocação Most Free Space (MFS)
   python main.py download <id> <destino> -> Baixa arquivo do Google Drive

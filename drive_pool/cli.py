@@ -173,7 +173,7 @@ def cmd_delete(manager: VirtualPoolManager, identifier: str):
 
 
 def cmd_auth(manager: VirtualPoolManager, account_id: Optional[str] = None):
-    """Autentica uma ou ambas as contas Google Drive."""
+    """Autentica uma ou todas as contas cadastradas no pool."""
     target_accounts = [account_id] if account_id else manager.account_ids
     print(f"\n{BOLD}═══ CONFIGURAÇÃO DE AUTENTICAÇÃO OAUTH 2.0 ═══{RESET}")
     for acc in target_accounts:
@@ -189,10 +189,246 @@ def cmd_auth(manager: VirtualPoolManager, account_id: Optional[str] = None):
             print(f"{RED}✖ Falha na autorização de {acc}: {e}{RESET}")
 
 
+def cmd_accounts(manager: VirtualPoolManager):
+    """Lista todas as contas cadastradas no pool."""
+    accounts = manager.list_registered_accounts()
+    print(f"\n{BOLD}═══ CONTAS GOOGLE DRIVE CADASTRADAS NO POOL ({len(accounts)}) ═══{RESET}")
+    print(f"{'ID':<15} {'NOME':<25} {'TOKEN':<22} {'EMAIL':<30}")
+    print("─" * 92)
+    for acc in accounts:
+        has_token = os.path.exists(acc["token_path"])
+        token_indicator = f"{GREEN}✔ Conectado{RESET}" if has_token else f"{YELLOW}⚠ Pendente{RESET}"
+        email_str = acc["email"] or "N/A"
+        print(f"{BOLD}{acc['id']:<15}{RESET} {acc['nome_exibicao']:<25} {token_indicator:<31} {email_str:<30}")
+    print(f"\n{DIM}Use 'python main.py add-account <id>' para adicionar mais contas.{RESET}")
+    print(f"{DIM}Use 'python main.py auth <id>' para autorizar uma conta.{RESET}\n")
+
+
+def cmd_add_account(manager: VirtualPoolManager, acc_id: str, nome: Optional[str] = None, email: Optional[str] = None):
+    """Adiciona uma nova conta ao pool."""
+    try:
+        acc = manager.add_account(account_id=acc_id, display_name=nome, email=email)
+        print(f"\n{GREEN}{BOLD}✔ Conta '{acc['id']}' cadastrada com sucesso no pool!{RESET}")
+        print(f"  • Token configurado para: {acc['token_path']}")
+        print(f"  • Para autorizar no Google Drive agora, execute: {CYAN}python main.py auth {acc['id']}{RESET}\n")
+    except Exception as e:
+        print(f"\n{RED}✖ Falha ao adicionar conta: {e}{RESET}\n")
+
+
+def cmd_remove_account(manager: VirtualPoolManager, acc_id: str):
+    """Remove uma conta do pool."""
+    try:
+        success = manager.remove_account(acc_id)
+        if success:
+            print(f"\n{GREEN}{BOLD}✔ Conta '{acc_id}' removida do pool com sucesso.{RESET}\n")
+        else:
+            print(f"\n{YELLOW}Conta '{acc_id}' não encontrada no pool.{RESET}\n")
+    except Exception as e:
+        print(f"\n{RED}✖ Falha ao remover conta: {e}{RESET}\n")
+
+
+def cmd_programs(manager: VirtualPoolManager, categoria: Optional[str] = None, plataforma: Optional[str] = None):
+    """Lista todos os programas e softwares armazenados no pool do Google Drive."""
+    progs = manager.list_programs(categoria=categoria, plataforma=plataforma)
+    print(f"\n{CYAN}{BOLD}═══ PROGRAMAS E SOFTWARES NO GOOGLE DRIVE POOL ({len(progs)}) ═══{RESET}")
+    print(f"{'ID':<4} {'PROGRAMA':<30} {'VERSÃO':<10} {'CATEGORIA':<16} {'PLATAFORMA':<18} {'CONTA DRIVE':<14} {'TAMANHO':<10}")
+    print("-" * 105)
+
+    if not progs:
+        print(f"{YELLOW}Nenhum programa cadastrado no catálogo do Drive.{RESET}")
+        print(f"{DIM}Cadastre um novo com: python main.py add-program <arquivo> --nome <nome>{RESET}\n")
+        return
+
+    for p in progs:
+        tamanho_fmt = format_bytes(p["tamanho_bytes"]) if p.get("tamanho_bytes") else "N/A"
+        conta_fmt = p.get("conta_origem") or "Drive Pool"
+        print(
+            f"{BOLD}{p['id']:<4}{RESET} "
+            f"{p['nome_programa']:<30} "
+            f"{p['versao']:<10} "
+            f"{p['categoria']:<16} "
+            f"{p['plataforma']:<18} "
+            f"{CYAN}{conta_fmt:<14}{RESET} "
+            f"{tamanho_fmt:<10}"
+        )
+        if p.get("descricao"):
+            print(f"     {DIM}↳ Descrição: {p['descricao']}{RESET}")
+        if p.get("comando_execucao"):
+            print(f"     {DIM}↳ Comando: {GREEN}{p['comando_execucao']}{RESET}")
+        print()
+
+    print(f"{DIM}Para executar ou baixar um programa: python main.py launch <ID_ou_NOME>{RESET}")
+    print(f"{DIM}Para adicionar novo programa: python main.py add-program <arquivo> --nome \"Nome\"{RESET}\n")
+
+
+def cmd_launch(manager: VirtualPoolManager, identifier: str):
+    """Prepara, baixa sob demanda e executa um programa do Google Drive."""
+    print(f"\n{CYAN}{BOLD}Iniciando inicialização do programa '{identifier}' do Drive...{RESET}")
+    try:
+        def on_progress(current, total, pct):
+            print(f"\r  • Baixando do Google Drive: {format_bytes(current)} / {format_bytes(total)} ({pct:.1f}%)", end="")
+
+        result = manager.launch_program(identifier, progress_callback=on_progress)
+        prog = result["programa"]
+        print(f"\n{GREEN}{BOLD}✔ Programa pronto para execução!{RESET}")
+        print(f"  • Nome: {BOLD}{prog['nome_programa']}{RESET} (v{prog['versao']})")
+        print(f"  • Categoria: {prog['categoria']} | Plataforma: {prog['plataforma']}")
+        print(f"  • Conta no Drive: {CYAN}{prog.get('conta_origem', 'Pool')}{RESET}")
+        if result.get("caminho_local"):
+            print(f"  • Caminho em Cache Local: {result['caminho_local']}")
+        print(f"  • Comando de Execução: {GREEN}{result['comando_execucao']}{RESET}")
+        print(f"\n{DIM}Executando em ambiente local...{RESET}\n")
+    except Exception as e:
+        print(f"\n{RED}✖ Falha ao acessar/executar o programa: {e}{RESET}\n")
+
+
+def cmd_add_program(
+    manager: VirtualPoolManager,
+    arquivo: Optional[str],
+    nome: str,
+    versao: str,
+    categoria: str,
+    plataforma: str,
+    descricao: str,
+    comando: str
+):
+    """Faz o upload e cadastra um novo programa no Google Drive."""
+    print(f"\n{CYAN}{BOLD}Cadastrando novo programa '{nome}' no Google Drive Virtual Pool...{RESET}")
+    try:
+        def on_prog(current, total, pct):
+            print(f"\r  • Enviando para a conta com mais espaço livre: {pct:.1f}%", end="")
+
+        created = manager.add_program(
+            nome_programa=nome,
+            local_file_path_or_id=arquivo,
+            versao=versao,
+            categoria=categoria,
+            plataforma=plataforma,
+            descricao=descricao,
+            comando_execucao=comando,
+            progress_callback=on_prog if arquivo and os.path.isfile(arquivo) else None
+        )
+        print(f"\n{GREEN}{BOLD}✔ Programa '{created['nome_programa']}' registrado com sucesso! (ID: {created['id']}){RESET}")
+        print(f"  • Categoria: {created['categoria']} | Versão: {created['versao']}")
+        print(f"  • Plataforma: {created['plataforma']}")
+        if created.get("nome_arquivo"):
+            print(f"  • Arquivo no Drive: {created['nome_arquivo']} ({created.get('conta_origem', 'Drive')})")
+        print(f"\n{DIM}Execute 'python main.py programs' para ver todos os softwares.{RESET}\n")
+    except Exception as e:
+        print(f"\n{RED}✖ Falha ao cadastrar programa: {e}{RESET}\n")
+
+
+# -------------------------------------------------------------
+# Comandos de Sincronização Automática de Pastas e Watcher (MFS)
+# -------------------------------------------------------------
+def cmd_sync_folders(manager: VirtualPoolManager):
+    """Lista as pastas locais designadas para sincronização com o pool."""
+    print(f"\n{CYAN}{BOLD}📁 Pastas Locais Designadas para Auto-Sync com o Pool Virtual:{RESET}")
+    folders = manager.list_sync_folders()
+    if not folders:
+        print(f"  {YELLOW}Nenhuma pasta designada cadastrada.{RESET}")
+        print(f"  {DIM}Use 'python main.py add-sync-folder <caminho>' para adicionar uma pasta.{RESET}\n")
+        return
+
+    table_data = []
+    for f in folders:
+        status_str = f"{GREEN}Ativo{RESET}" if f.get("ativo", 1) else f"{YELLOW}Pausado{RESET}"
+        rec_str = "Sim" if f.get("recursivo", 1) else "Não"
+        ultimo = f.get("ultimo_sync")
+        ultimo_str = ultimo[:19].replace("T", " ") if ultimo else "Nunca"
+        table_data.append([
+            str(f["id"]),
+            f["nome_identificador"][:25],
+            f["caminho_local"][-35:] if len(f["caminho_local"]) > 35 else f["caminho_local"],
+            status_str,
+            rec_str,
+            str(f.get("total_arquivos", 0)),
+            f.get("total_bytes_formatado", "0 B"),
+            ultimo_str
+        ])
+
+    headers = ["ID", "Nome", "Caminho Local", "Status", "Recursivo", "Arquivos", "Tamanho", "Último Sync"]
+    col_widths = [max(len(h), max((len(row[i]) for row in table_data), default=0)) for i, h in enumerate(headers)]
+    header_row = "  ".join(f"{h:<{w}}" for h, w in zip(headers, col_widths))
+    sep_row = "  ".join("-" * w for w in col_widths)
+
+    print(f"{BOLD}{header_row}{RESET}")
+    print(f"{DIM}{sep_row}{RESET}")
+    for row in table_data:
+        # Note: row contains ANSI escapes so we adjust spacing
+        line = f"  ".join(f"{col:<{w}}" for col, w in zip(row, col_widths))
+        print(line)
+    print(f"\n{DIM}Dica: Execute 'python main.py watch' para iniciar o monitoramento em tempo real.{RESET}\n")
+
+
+def cmd_add_sync_folder(manager: VirtualPoolManager, caminho: str, nome: Optional[str] = None, recursivo: bool = True):
+    """Designa nova pasta local para sincronização contínua."""
+    abs_path = os.path.abspath(caminho)
+    if not os.path.exists(abs_path):
+        os.makedirs(abs_path, exist_ok=True)
+        print(f"{GREEN}✔ Diretório local criado no disco: {abs_path}{RESET}")
+
+    res = manager.add_sync_folder(abs_path, nome_identificador=nome, recursivo=recursivo)
+    print(f"\n{GREEN}{BOLD}✔ Pasta designada com sucesso para Auto-Sync!{RESET}")
+    print(f"  • ID: {res['id']}")
+    print(f"  • Nome: {res['nome_identificador']}")
+    print(f"  • Caminho: {res['caminho_local']}")
+    print(f"  • Modo: {'Recursivo (subpastas inclusas)' if recursivo else 'Apenas raiz'}")
+    print(f"\n{DIM}Inicie o watcher com: python main.py watch --folder \"{res['caminho_local']}\"{RESET}\n")
+
+
+def cmd_remove_sync_folder(manager: VirtualPoolManager, identifier: str):
+    """Remove uma pasta designada da sincronização."""
+    success = manager.remove_sync_folder(identifier)
+    if success:
+        print(f"\n{GREEN}{BOLD}✔ Pasta designada '{identifier}' removida com sucesso das configurações.{RESET}\n")
+    else:
+        print(f"\n{RED}✖ Pasta '{identifier}' não encontrada no catálogo.{RESET}\n")
+
+
+def cmd_sync(manager: VirtualPoolManager, identifier: Optional[str] = None):
+    """Executa sincronização manual imediata usando a política MFS."""
+    if identifier:
+        print(f"\n{CYAN}{BOLD}Iniciando sincronização da pasta designada '{identifier}'...{RESET}")
+        try:
+            res = manager.sync_folder(identifier)
+            print(f"\n{GREEN}{BOLD}✔ Sincronização concluída com sucesso!{RESET}")
+            print(f"  • Arquivos enviados: {res['arquivos_enviados']}")
+            print(f"  • Arquivos já sincronizados (ignorados): {res['arquivos_ignorados']}")
+            print(f"  • Falhas: {res['erros']}")
+            print(f"  • Volume transferido: {res['bytes_sincronizados_formatado']}")
+            for f in res.get("arquivos", []):
+                print(f"    ➔ {f['nome']} ({f['tamanho_formatado']}) alocado via MFS em: {CYAN}{f['conta_destino'].upper()}{RESET}")
+        except Exception as e:
+            print(f"\n{RED}✖ Erro na sincronização: {e}{RESET}\n")
+    else:
+        print(f"\n{CYAN}{BOLD}Iniciando sincronização de todas as pastas designadas ativas...{RESET}")
+        results = manager.sync_all_active_folders()
+        total_up = sum(r.get("arquivos_enviados", 0) for r in results)
+        total_b = sum(r.get("bytes_sincronizados", 0) for r in results)
+        print(f"\n{GREEN}{BOLD}✔ Processadas {len(results)} pasta(s). Total de {total_up} arquivo(s) enviados ({format_bytes(total_b)}).{RESET}\n")
+
+
+def cmd_watch(manager: VirtualPoolManager, folder: Optional[str] = None, interval: float = 5.0, once: bool = False):
+    """Inicia o daemon de monitoramento contínuo (watcher) com uploads MFS automáticos."""
+    from drive_pool.watcher import FolderWatcher
+    watcher = FolderWatcher(
+        manager=manager,
+        poll_interval=interval,
+        target_folder_path=folder
+    )
+    if once:
+        watcher.scan_and_sync_all(verbose=True)
+    else:
+        watcher.run_loop()
+
+
+
+
 def run_cli():
     """Ponto de entrada principal da CLI."""
     parser = argparse.ArgumentParser(
-        description="Google Drive Virtual Storage Pool - Gerenciador Multi-Conta"
+        description="Google Drive Virtual Storage Pool - Gerenciador Multi-Conta (N Contas)"
     )
     subparsers = parser.add_subparsers(dest="command", help="Comandos disponíveis")
 
@@ -212,12 +448,64 @@ def run_cli():
     p_delete = subparsers.add_parser("delete", help="Remove o arquivo do Google Drive e do SQLite")
     p_delete.add_argument("identificador", help="ID numérico ou nome do arquivo a excluir")
 
+    # accounts
+    subparsers.add_parser("accounts", help="Lista todas as contas Google Drive cadastradas no pool")
+
+    # add-account <id> [--nome] [--email]
+    p_add = subparsers.add_parser("add-account", help="Cadastra uma nova conta no pool (ex: add-account drive_3)")
+    p_add.add_argument("id", help="Identificador único da conta (ex: drive_3, drive_backup)")
+    p_add.add_argument("--nome", help="Nome de exibição opcional", default=None)
+    p_add.add_argument("--email", help="E-mail da conta Google opcional", default=None)
+
+    # remove-account <id>
+    p_rm = subparsers.add_parser("remove-account", help="Remove uma conta do pool")
+    p_rm.add_argument("id", help="Identificador da conta a remover")
+
     # auth [conta]
     p_auth = subparsers.add_parser("auth", help="Realiza o login OAuth 2.0 das contas do Google Drive")
-    p_auth.add_argument("conta", nargs="?", choices=["drive_1", "drive_2"], help="Conta específica a autorizar (opcional)")
+    p_auth.add_argument("conta", nargs="?", default=None, help="Conta específica a autorizar (ex: drive_1, drive_2, drive_3)")
 
-    # status
-    subparsers.add_parser("status", help="Exibe o status de cota e capacidade das contas e do pool")
+    # programs / apps
+    p_progs = subparsers.add_parser("programs", help="Lista programas, softwares e instaladores armazenados no Drive")
+    p_progs.add_argument("--categoria", help="Filtrar por categoria", default=None)
+    p_progs.add_argument("--plataforma", help="Filtrar por plataforma (Windows, Linux, macOS)", default=None)
+
+    # launch <id_ou_nome>
+    p_launch = subparsers.add_parser("launch", help="Prepara, baixa se necessário e executa um programa do Drive")
+    p_launch.add_argument("identificador", help="ID numérico ou nome do programa a executar")
+
+    # add-program <arquivo> --nome <nome>
+    p_add_prog = subparsers.add_parser("add-program", help="Envia um novo executável/programa para o Google Drive e o cataloga")
+    p_add_prog.add_argument("arquivo", nargs="?", default=None, help="Caminho do instalador ou executável local")
+    p_add_prog.add_argument("--nome", required=True, help="Nome do programa")
+    p_add_prog.add_argument("--versao", default="1.0.0", help="Versão do software")
+    p_add_prog.add_argument("--categoria", default="Utilitários", help="Categoria (Produtividade, Dev, Jogos, etc.)")
+    p_add_prog.add_argument("--plataforma", default="Multiplataforma", help="Plataforma suportada")
+    p_add_prog.add_argument("--descricao", default="", help="Descrição ou notas de uso")
+    p_add_prog.add_argument("--comando", default="", help="Comando para execução local")
+
+    # sync-folders
+    subparsers.add_parser("sync-folders", help="Lista pastas locais designadas para auto-sync com o pool")
+
+    # add-sync-folder <caminho> [--nome <nome>] [--no-recursive]
+    p_add_sync = subparsers.add_parser("add-sync-folder", help="Designa uma pasta local para sincronização contínua com o Pool")
+    p_add_sync.add_argument("caminho", help="Caminho da pasta local")
+    p_add_sync.add_argument("--nome", help="Nome de identificação da pasta", default=None)
+    p_add_sync.add_argument("--no-recursive", action="store_true", help="Desativa sincronização de subpastas")
+
+    # remove-sync-folder <id_ou_caminho>
+    p_rm_sync = subparsers.add_parser("remove-sync-folder", help="Remove uma pasta designada da sincronização")
+    p_rm_sync.add_argument("identificador", help="ID numérico ou caminho da pasta designada")
+
+    # sync [id_ou_caminho]
+    p_sync = subparsers.add_parser("sync", help="Sincroniza imediatamente uma pasta ou todas as pastas ativas usando MFS")
+    p_sync.add_argument("identificador", nargs="?", default=None, help="ID ou caminho da pasta (opcional, sincroniza todas se omitido)")
+
+    # watch [--folder <caminho>] [--interval <seg>] [--once]
+    p_watch = subparsers.add_parser("watch", help="Inicia o watcher em tempo real para sincronização contínua via MFS")
+    p_watch.add_argument("--folder", "-f", help="Pasta específica para monitorar (opcional)", default=None)
+    p_watch.add_argument("--interval", "-i", type=float, default=5.0, help="Intervalo de verificação em segundos (padrão: 5)")
+    p_watch.add_argument("--once", action="store_true", help="Executa apenas uma verificação e encerra")
 
     args = parser.parse_args()
 
@@ -232,6 +520,37 @@ def run_cli():
         cmd_download(manager, args.identificador, args.destino)
     elif args.command == "delete":
         cmd_delete(manager, args.identificador)
+    elif args.command == "accounts":
+        cmd_accounts(manager)
+    elif args.command == "add-account":
+        cmd_add_account(manager, args.id, args.nome, args.email)
+    elif args.command == "remove-account":
+        cmd_remove_account(manager, args.id)
+    elif args.command == "programs":
+        cmd_programs(manager, args.categoria, args.plataforma)
+    elif args.command == "launch":
+        cmd_launch(manager, args.identificador)
+    elif args.command == "add-program":
+        cmd_add_program(
+            manager,
+            arquivo=args.arquivo,
+            nome=args.nome,
+            versao=args.versao,
+            categoria=args.categoria,
+            plataforma=args.plataforma,
+            descricao=args.descricao,
+            comando=args.comando
+        )
+    elif args.command == "sync-folders":
+        cmd_sync_folders(manager)
+    elif args.command == "add-sync-folder":
+        cmd_add_sync_folder(manager, args.caminho, args.nome, recursivo=not args.no_recursive)
+    elif args.command == "remove-sync-folder":
+        cmd_remove_sync_folder(manager, args.identificador)
+    elif args.command == "sync":
+        cmd_sync(manager, args.identificador)
+    elif args.command == "watch":
+        cmd_watch(manager, folder=args.folder, interval=args.interval, once=args.once)
     elif args.command == "auth":
         cmd_auth(manager, args.conta)
     elif args.command == "status":
